@@ -117,6 +117,28 @@ class Interpreter {
                 stack.push(arg1);
                 continue;
             }
+
+            if ("NOT".equals(token)) {
+                final Integer arg0 = stack.pop();
+                if (0 == arg0) {
+                    stack.push(1);
+                } else {
+                    stack.push(0);
+                }
+                continue;
+            }
+
+            if ("POS".equals(token)) {
+                final Integer arg0 = stack.pop();
+                if (arg0 >= 0) {
+                    stack.push(1);
+                } else {
+                    stack.push(0);
+                }
+                continue;
+            }
+
+            throw new IllegalArgumentException("Unexpected '" + token + "'");
         }
     }
 
