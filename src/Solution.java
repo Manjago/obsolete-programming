@@ -1,6 +1,3 @@
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.*;
 
 /**
@@ -32,7 +29,7 @@ class Interpreter {
 
     final Deque<Integer> stack = new LinkedList<>();
 
-    void exec(@NotNull String s) {
+    void exec(String s) {
         final String[] tokens = s.split(" ");
         for(String token : tokens) {
             final Integer number = tryParse(token);
@@ -81,10 +78,49 @@ class Interpreter {
                 System.out.println(arg0);
                 continue;
             }
+
+            if ("POP".equals(token)) {
+                stack.pop();
+                continue;
+            }
+
+            if ("SWP".equals(token)) {
+                final Integer arg0 = stack.pop();
+                final Integer arg1 = stack.pop();
+                stack.push(arg0);
+                stack.push(arg1);
+                continue;
+            }
+
+            if ("DUP".equals(token)) {
+                final Integer arg0 = stack.pop();
+                stack.push(arg0);
+                stack.push(arg0);
+                continue;
+            }
+
+            if ("ROT".equals(token)) {
+                final Integer arg0 = stack.pop();
+                final Integer arg1 = stack.pop();
+                final Integer arg2 = stack.pop();
+                stack.push(arg1);
+                stack.push(arg0);
+                stack.push(arg2);
+                continue;
+            }
+
+            if ("OVR".equals(token)) {
+                final Integer arg0 = stack.pop();
+                final Integer arg1 = stack.pop();
+                stack.push(arg1);
+                stack.push(arg0);
+                stack.push(arg1);
+                continue;
+            }
         }
     }
 
-    @Nullable Integer tryParse(@NotNull String token) {
+    private Integer tryParse(String token) {
         Integer result;
         try {
             result = Integer.valueOf(token);
