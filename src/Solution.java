@@ -11,6 +11,10 @@ enum State {
     NORMAL, WAIT_NAME, RECORD_DEF
 }
 
+enum IfState {
+    IN_TRUE_DO, IN_TRUE_SKIP, IN_FALSE_DO, IN_FALSE_SKIP
+}
+
 class Solution {
 
     public static void main(String[] args) {
@@ -31,6 +35,8 @@ class Interpreter {
 
     final Deque<Integer> stack = new LinkedList<>();
     final Map<String, List<String>> defs = new HashMap<>();
+
+    final Deque<IfState> ifState = new LinkedList<>();
 
     String currentDefName;
 
@@ -64,7 +70,51 @@ class Interpreter {
     }
 
     private void execNormalToken(String token) {
+
+        if (!ifState.isEmpty()) {
+            final IfState currentIfState = ifState.peek();
+            switch (currentIfState) {
+                case IN_TRUE_DO -> {
+                    if ("ELS".equals(token)) {
+                        ifState.pop();
+                        ifState.add(IfState.IN_FALSE_SKIP);
+                        return;
+                    }
+                    if ("FI".equals(token)) {
+                        ifState.pop();
+                        return;
+                    }
+                }
+                case IN_TRUE_SKIP -> {
+                    if ("ELS".equals(token)) {
+                        ifState.pop();
+                        ifState.add(IfState.IN_FALSE_DO);
+                        return;
+                    }
+                    if ("FI".equals(token)) {
+                        ifState.pop();
+                        return;
+                    }
+                    return;
+                }
+                case IN_FALSE_DO -> {
+                    if ("FI".equals(token)) {
+                        ifState.pop();
+                        return;
+                    }
+                }
+                case IN_FALSE_SKIP -> {
+                    if ("FI".equals(token)) {
+                        ifState.pop();
+                        return;
+                    }
+                    return;
+                }
+            }
+        }
+
         final Integer number = tryParse(token);
+
         if (number != null) {
             stack.push(number);
             return;
@@ -177,6 +227,16 @@ class Interpreter {
                 stack.push(1);
             } else {
                 stack.push(0);
+            }
+            return;
+        }
+
+        if("IF".equals(token)) {
+            Integer arg = stack.pop();
+            if (arg != 0) {
+                ifState.push(IfState.IN_TRUE_DO);
+            } else {
+                ifState.push(IfState.IN_TRUE_SKIP);
             }
             return;
         }
