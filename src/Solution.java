@@ -6,7 +6,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
-
+import java.util.Set;
 
 
 enum State {
@@ -28,7 +28,16 @@ class Solution {
         final Interpreter interpreter = new Interpreter();
         for (int i = 0; i < n; i++) {
             String line = in.nextLine();
-            interpreter.exec(line);
+            interpreter.exec(clean(line));
+        }
+    }
+
+    private static String clean(String s) {
+        final int pos = s.indexOf('#');
+        if (pos >=0) {
+            return s.substring(0, pos);
+        } else {
+            return s;
         }
     }
 }
@@ -37,15 +46,16 @@ class Interpreter {
 
     final Deque<Integer> stack = new LinkedList<>();
     final Map<String, List<String>> defs = new HashMap<>();
-
     final Deque<IfState> ifState = new LinkedList<>();
-
+    private final Set<String> noTraceDefs = Set.of("ABS");
     String currentDefName;
-
     State state = State.NORMAL;
+    private boolean traceOn = true;
 
     void exec(String s) {
-        final List<String> tokens = Arrays.stream(s.split(" ")).filter(it -> !it.isBlank()).toList();
+        final List<String> tokens = Arrays.stream(s.split(" "))
+                .filter(it -> !it.isBlank())
+                .toList();
         exec(tokens);
     }
 
@@ -74,7 +84,7 @@ class Interpreter {
     }
 
     private void execNormalToken(String token) {
-        if("IF".equals(token)) {
+        if ("IF".equals(token)) {
             Integer arg = stack.pop();
             if (arg != 0) {
                 ifState.push(IfState.IN_TRUE_DO);
@@ -135,9 +145,11 @@ class Interpreter {
 
         final List<String> customDef = defs.get(token);
         if (customDef != null) {
-            trace("Start custom '" + token+"'");
+            traceOn = !noTraceDefs.contains(token);
+            traceCall(token, "Start custom");
             exec(customDef);
-            trace("End custom '" + token+"'");
+            traceCall(token, "End custom");
+            traceOn = noTraceDefs.contains(token);
             return;
         }
 
@@ -259,11 +271,17 @@ class Interpreter {
         return result;
     }
 
-   private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfState> ifState, String oldState, State state) {
-       System.err.println(s + " " + oldStack + "->" + newStack + ", " + oldIfState + "->" + ifState +", " + oldState +"->"+ state);
-   }
+    private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfState> ifState, String oldState, State state) {
+        if (!traceOn) {
+            return;
+        }
+        System.err.println(s + " " + oldStack + "->" + newStack + ", " + oldIfState + "->" + ifState + ", " + oldState + "->" + state);
+    }
 
-   private void trace(String s) {
-       System.err.println(s);
-   }
+    private void traceCall(String name, String s) {
+        if (!traceOn) {
+            return;
+        }
+        System.err.println(s + "'" + name + '"');
+    }
 }
