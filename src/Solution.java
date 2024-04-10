@@ -64,76 +64,73 @@ class Interpreter {
             final String oldStack = stack.toString();
             final String oldIfState = ifState.toString();
             final String oldState = state.toString();
-            switch (state) {
-                case NORMAL -> execNormalToken(token);
-                case WAIT_NAME -> {
-                    currentDefName = token;
-                    defs.put(currentDefName, new ArrayList<>());
-                    state = State.RECORD_DEF;
-                }
-                case RECORD_DEF -> {
-                    if ("END".equals(token)) {
-                        state = State.NORMAL;
-                    } else {
-                        defs.get(currentDefName).add(token);
-                    }
-                }
+
+            if (ifPreprocessOk(token)) {
+                processOneToken(token);
             }
+
             trace(token, oldStack, stack, oldIfState, ifState, oldState, state);
         }
     }
 
+    private boolean ifPreprocessOk(String token) {
+
+        if (ifState.isEmpty()) {
+            return true;
+        }
+
+        final IfState currentIfState = ifState.peek();
+        switch (currentIfState) {
+            case IN_TRUE_DO -> {
+                switch (token) {
+                    case "ELS":
+                        ifState.pop();
+                        ifState.push(IfState.IN_FALSE_SKIP);
+                        return false;
+                    case "FI":
+                        ifState.pop();
+                        return true;
+                }
+            }
+            case IN_TRUE_SKIP -> {
+            }
+            case IN_FALSE_DO -> {
+            }
+            case IN_FALSE_SKIP -> {
+            }
+        }
+
+        return true;
+    }
+
+    private void processOneToken(String token) {
+        switch (state) {
+            case NORMAL -> execNormalToken(token);
+            case WAIT_NAME -> {
+                currentDefName = token;
+                defs.put(currentDefName, new ArrayList<>());
+                state = State.RECORD_DEF;
+            }
+            case RECORD_DEF -> {
+                if ("END".equals(token)) {
+                    state = State.NORMAL;
+                } else {
+                    defs.get(currentDefName).add(token);
+                }
+            }
+        }
+    }
+
     private void execNormalToken(String token) {
+
         if ("IF".equals(token)) {
-            Integer arg = stack.pop();
+            final Integer arg = stack.pop();
             if (arg != 0) {
                 ifState.push(IfState.IN_TRUE_DO);
             } else {
                 ifState.push(IfState.IN_TRUE_SKIP);
             }
             return;
-        }
-
-        if (!ifState.isEmpty()) {
-            final IfState currentIfState = ifState.peek();
-            switch (currentIfState) {
-                case IN_TRUE_DO -> {
-                    if ("ELS".equals(token)) {
-                        ifState.pop();
-                        ifState.add(IfState.IN_FALSE_SKIP);
-                        return;
-                    }
-                    if ("FI".equals(token)) {
-                        ifState.pop();
-                        return;
-                    }
-                }
-                case IN_TRUE_SKIP -> {
-                    if ("ELS".equals(token)) {
-                        ifState.pop();
-                        ifState.add(IfState.IN_FALSE_DO);
-                        return;
-                    }
-                    if ("FI".equals(token)) {
-                        ifState.pop();
-                        return;
-                    }
-                    return;
-                }
-                case IN_FALSE_DO -> {
-                    if ("FI".equals(token)) {
-                        ifState.pop();
-                        return;
-                    }
-                }
-                case IN_FALSE_SKIP -> {
-                    if ("FI".equals(token)) {
-                        ifState.pop();
-                        return;
-                    }
-                    return;
-                }
-            }
         }
 
         final Integer number = tryParse(token);
