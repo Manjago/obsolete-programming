@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+
+
 enum State {
     NORMAL, WAIT_NAME, RECORD_DEF
 }
@@ -43,13 +45,15 @@ class Interpreter {
     State state = State.NORMAL;
 
     void exec(String s) {
-        final List<String> tokens = Arrays.stream(s.split(" ")).toList();
+        final List<String> tokens = Arrays.stream(s.split(" ")).filter(it -> !it.isBlank()).toList();
         exec(tokens);
     }
 
     private void exec(List<String> tokens) {
         for (String token : tokens) {
-
+            final String oldStack = stack.toString();
+            final String oldIfState = ifState.toString();
+            final String oldState = state.toString();
             switch (state) {
                 case NORMAL -> execNormalToken(token);
                 case WAIT_NAME -> {
@@ -65,11 +69,20 @@ class Interpreter {
                     }
                 }
             }
-
+            trace(token, oldStack, stack, oldIfState, ifState, oldState, state);
         }
     }
 
     private void execNormalToken(String token) {
+        if("IF".equals(token)) {
+            Integer arg = stack.pop();
+            if (arg != 0) {
+                ifState.push(IfState.IN_TRUE_DO);
+            } else {
+                ifState.push(IfState.IN_TRUE_SKIP);
+            }
+            return;
+        }
 
         if (!ifState.isEmpty()) {
             final IfState currentIfState = ifState.peek();
@@ -122,7 +135,9 @@ class Interpreter {
 
         final List<String> customDef = defs.get(token);
         if (customDef != null) {
+            trace("Start custom '" + token+"'");
             exec(customDef);
+            trace("End custom '" + token+"'");
             return;
         }
 
@@ -231,16 +246,6 @@ class Interpreter {
             return;
         }
 
-        if("IF".equals(token)) {
-            Integer arg = stack.pop();
-            if (arg != 0) {
-                ifState.push(IfState.IN_TRUE_DO);
-            } else {
-                ifState.push(IfState.IN_TRUE_SKIP);
-            }
-            return;
-        }
-
         throw new IllegalArgumentException("Unexpected '" + token + "'");
     }
 
@@ -254,5 +259,11 @@ class Interpreter {
         return result;
     }
 
+   private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfState> ifState, String oldState, State state) {
+       System.err.println(s + " " + oldStack + "->" + newStack + ", " + oldIfState + "->" + ifState +", " + oldState +"->"+ state);
+   }
 
+   private void trace(String s) {
+       System.err.println(s);
+   }
 }
