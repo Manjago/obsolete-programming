@@ -89,14 +89,45 @@ class Interpreter {
                         return false;
                     case "FI":
                         ifState.pop();
+                        return false;
+                    default:
                         return true;
                 }
             }
             case IN_TRUE_SKIP -> {
+                switch (token) {
+                    case "ELS":
+                        ifState.pop();
+                        ifState.push(IfState.IN_FALSE_DO);
+                        return false;
+                    case "FI":
+                        ifState.pop();
+                        return false;
+                    default:
+                        return false;
+                }
             }
             case IN_FALSE_DO -> {
+                switch (token) {
+                    case "ELS":
+                        throw new IllegalStateException("ELS in FALSE_DO");
+                    case "FI":
+                        ifState.pop();
+                        return false;
+                    default:
+                        return true;
+                }
             }
             case IN_FALSE_SKIP -> {
+                switch (token) {
+                    case "ELS":
+                        throw new IllegalStateException("ELS in FALSE_SKIP");
+                    case "FI":
+                        ifState.pop();
+                        return false;
+                    default:
+                        return false;
+                }
             }
         }
 
