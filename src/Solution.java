@@ -7,14 +7,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.StringJoiner;
 
 
 enum State {
     NORMAL, WAIT_NAME, RECORD_DEF
-}
-
-enum IfState {
-    IN_TRUE_DO, IN_TRUE_SKIP, IN_FALSE_DO, IN_FALSE_SKIP
 }
 
 class Solution {
@@ -34,7 +31,7 @@ class Solution {
 
     private static String clean(String s) {
         final int pos = s.indexOf('#');
-        if (pos >=0) {
+        if (pos >= 0) {
             return s.substring(0, pos);
         } else {
             return s;
@@ -45,93 +42,74 @@ class Solution {
 class Interpreter {
 
     final Deque<Integer> stack = new LinkedList<>();
+    final Deque<IfElsFi> ifStack = new LinkedList<>();
     final Map<String, List<String>> defs = new HashMap<>();
-    final Deque<IfState> ifState = new LinkedList<>();
     private final Set<String> noTraceDefs = Set.of("ABS");
     String currentDefName;
     State state = State.NORMAL;
     private boolean traceOn = true;
 
     void exec(String s) {
-        final List<String> tokens = Arrays.stream(s.split(" "))
-                .filter(it -> !it.isBlank())
-                .toList();
+        final List<String> tokens = Arrays.stream(s.split(" ")).filter(it -> !it.isBlank()).toList();
         exec(tokens);
     }
 
     private void exec(List<String> tokens) {
         for (String token : tokens) {
             final String oldStack = stack.toString();
-            final String oldIfState = ifState.toString();
+            final String oldIfStack = ifStack.toString();
             final String oldState = state.toString();
 
             if (ifPreprocessOk(token)) {
                 processOneToken(token);
             }
 
-            trace(token, oldStack, stack, oldIfState, ifState, oldState, state);
+            trace(token, oldStack, stack, oldIfStack, ifStack, oldState, state);
         }
     }
 
     private boolean ifPreprocessOk(String token) {
 
-        if (ifState.isEmpty()) {
+        if (state != State.NORMAL) {
             return true;
         }
 
-        final IfState currentIfState = ifState.peek();
-        switch (currentIfState) {
-            case IN_TRUE_DO -> {
-                switch (token) {
-                    case "ELS":
-                        ifState.pop();
-                        ifState.push(IfState.IN_FALSE_SKIP);
-                        return false;
-                    case "FI":
-                        ifState.pop();
-                        return false;
-                    default:
-                        return true;
+        switch (token) {
+            case "IF":
+                if (!ifStack.isEmpty() && !ifStack.peek().needCalc) {
+                    return false; // надо помечать, что заскипали
                 }
-            }
-            case IN_TRUE_SKIP -> {
-                switch (token) {
-                    case "ELS":
-                        ifState.pop();
-                        ifState.push(IfState.IN_FALSE_DO);
-                        return false;
-                    case "FI":
-                        ifState.pop();
-                        return false;
-                    default:
-                        return false;
+                final Integer arg = stack.pop();
+                ifStack.push(new IfElsFi(token, arg != 0));
+                return false;
+            case "ELS":
+                final IfElsFi ifElsFi = ifStack.pop();
+                if (!ifElsFi.kind.equals("IF")) {
+                    throw new IllegalStateException("Unexpected " + ifElsFi);
                 }
-            }
-            case IN_FALSE_DO -> {
-                switch (token) {
-                    case "ELS":
-                        throw new IllegalStateException("ELS in FALSE_DO");
-                    case "FI":
-                        ifState.pop();
-                        return false;
-                    default:
-                        return true;
+                ifStack.push(ifElsFi);
+                ifStack.push(new IfElsFi("ELS", !ifElsFi.needCalc));
+                return false;
+            case "FI":
+                final IfElsFi pretender = ifStack.pop();
+                if (pretender.kind.equals("ELS")) {
+                    final IfElsFi mustBeIf = ifStack.pop();
+                    if (!mustBeIf.kind.equals("IF")) {
+                        throw new IllegalStateException("Must be IF, but " + mustBeIf);
+                    }
+                } else if (pretender.kind.equals("IF")) {
+                    // do nothing
+                } else {
+                    throw new IllegalStateException("Bad stack item " + pretender);
                 }
-            }
-            case IN_FALSE_SKIP -> {
-                switch (token) {
-                    case "ELS":
-                        throw new IllegalStateException("ELS in FALSE_SKIP");
-                    case "FI":
-                        ifState.pop();
-                        return false;
-                    default:
-                        return false;
+                return false;
+            default:
+                if (ifStack.isEmpty()) {
+                    return true;
+                } else {
+                    return ifStack.peek().needCalc;
                 }
-            }
         }
-
-        return true;
     }
 
     private void processOneToken(String token) {
@@ -153,16 +131,6 @@ class Interpreter {
     }
 
     private void execNormalToken(String token) {
-
-        if ("IF".equals(token)) {
-            final Integer arg = stack.pop();
-            if (arg != 0) {
-                ifState.push(IfState.IN_TRUE_DO);
-            } else {
-                ifState.push(IfState.IN_TRUE_SKIP);
-            }
-            return;
-        }
 
         final Integer number = tryParse(token);
 
@@ -299,7 +267,7 @@ class Interpreter {
         return result;
     }
 
-    private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfState> ifState, String oldState, State state) {
+    private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfElsFi> ifState, String oldState, State state) {
         if (!traceOn) {
             return;
         }
@@ -311,5 +279,20 @@ class Interpreter {
             return;
         }
         System.err.println(s + "'" + name + '"');
+    }
+
+    private static class IfElsFi {
+        private String kind;
+        private boolean needCalc;
+
+        public IfElsFi(String kind, boolean needCalc) {
+            this.kind = kind;
+            this.needCalc = needCalc;
+        }
+
+        @Override
+        public String toString() {
+            return new StringJoiner(", ", IfElsFi.class.getSimpleName() + "[", "]").add("kind='" + kind + "'").add("needCalc=" + needCalc).toString();
+        }
     }
 }
