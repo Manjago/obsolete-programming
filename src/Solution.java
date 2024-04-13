@@ -42,7 +42,7 @@ class Solution {
 class Interpreter {
 
     final Deque<Integer> stack = new LinkedList<>();
-    final Deque<IfElsFi> ifStack = new LinkedList<>();
+    final Deque<IfElseItem> ifStack = new LinkedList<>();
     final Map<String, List<String>> defs = new HashMap<>();
     private final Set<String> noTraceDefs = Set.of("ABS");
     String currentDefName;
@@ -76,38 +76,36 @@ class Interpreter {
 
         switch (token) {
             case "IF":
-                if (!ifStack.isEmpty() && !ifStack.peek().needCalc) {
-                    return false; // надо помечать, что заскипали
+                final IfElseItem top = ifStack.peek();
+                if (top != null && !top.calcNow()) {
+                    ifStack.push(new IfItem(false, false));
+                } else {
+                    final Integer arg = stack.pop();
+                    ifStack.push(new IfItem(arg != 0, arg == 0));
                 }
-                final Integer arg = stack.pop();
-                ifStack.push(new IfElsFi(token, arg != 0));
                 return false;
             case "ELS":
-                final IfElsFi ifElsFi = ifStack.pop();
-                if (!ifElsFi.kind.equals("IF")) {
-                    throw new IllegalStateException("Unexpected " + ifElsFi);
+                final IfElseItem current = ifStack.peek();
+                if (current instanceof IfItem realIfItem) {
+                    ifStack.push(new ElsItem(realIfItem.caclElse));
+                } else if (current != null) {
+                    throw new IllegalStateException("Unexpected " + current);
                 }
-                ifStack.push(ifElsFi);
-                ifStack.push(new IfElsFi("ELS", !ifElsFi.needCalc));
                 return false;
             case "FI":
-                final IfElsFi pretender = ifStack.pop();
-                if (pretender.kind.equals("ELS")) {
-                    final IfElsFi mustBeIf = ifStack.pop();
-                    if (!mustBeIf.kind.equals("IF")) {
+                final IfElseItem pretender = ifStack.pop();
+                if (pretender instanceof ElsItem) {
+                    final IfElseItem mustBeIf = ifStack.pop();
+                    if (!(mustBeIf instanceof IfItem)) {
                         throw new IllegalStateException("Must be IF, but " + mustBeIf);
                     }
-                } else if (pretender.kind.equals("IF")) {
-                    // do nothing
-                } else {
-                    throw new IllegalStateException("Bad stack item " + pretender);
                 }
                 return false;
             default:
                 if (ifStack.isEmpty()) {
                     return true;
                 } else {
-                    return ifStack.peek().needCalc;
+                    return ifStack.peek().calcNow();
                 }
         }
     }
@@ -267,32 +265,36 @@ class Interpreter {
         return result;
     }
 
-    private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfElsFi> ifState, String oldState, State state) {
+    private void trace(String s, String oldStack, Deque<Integer> newStack, String oldIfState, Deque<IfElseItem> ifState, String oldState, State state) {
         if (!traceOn) {
             return;
         }
-        System.err.println(s + " " + oldStack + "->" + newStack + ", " + oldIfState + "->" + ifState + ", " + oldState + "->" + state);
+        //System.err.println(s + " " + oldStack + "->" + newStack + ", " + oldIfState + "->" + ifState + ", " + oldState + "->" + state);
     }
 
     private void traceCall(String name, String s) {
         if (!traceOn) {
             return;
         }
-        System.err.println(s + "'" + name + '"');
+        //System.err.println(s + "'" + name + '"');
     }
 
-    private static class IfElsFi {
-        private String kind;
-        private boolean needCalc;
+    private sealed interface IfElseItem {
+        boolean calcNow();
+    }
 
-        public IfElsFi(String kind, boolean needCalc) {
-            this.kind = kind;
-            this.needCalc = needCalc;
-        }
-
+    private record IfItem(boolean calcIf, boolean caclElse) implements IfElseItem {
         @Override
-        public String toString() {
-            return new StringJoiner(", ", IfElsFi.class.getSimpleName() + "[", "]").add("kind='" + kind + "'").add("needCalc=" + needCalc).toString();
+        public boolean calcNow() {
+            return calcIf;
         }
     }
+
+    private record ElsItem(boolean calc) implements IfElseItem {
+        @Override
+        public boolean calcNow() {
+            return calc;
+        }
+    }
+
 }
